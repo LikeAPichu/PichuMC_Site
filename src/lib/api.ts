@@ -1,5 +1,43 @@
 const TOKEN_KEY = "pichumc_admin_token";
 const USER_KEY = "pichumc_admin_user";
+export const ADMIN_SESSION_EXPIRED_EVENT = "admin:session-expired";
+
+type AdminUser = {
+  id: string;
+  username: string;
+  role: string;
+  permissions?: Record<string, boolean>;
+};
+
+type AdminSessionToken = {
+  userId: string;
+  username?: string;
+  role: string;
+  roleId?: string;
+  permissions?: Record<string, boolean>;
+  exp: number;
+};
+
+function parseToken(token: string | null): AdminSessionToken | null {
+  if (!token) return null;
+  try {
+    return JSON.parse(atob(token));
+  } catch {
+    return null;
+  }
+}
+
+function notifySessionExpired(message = "Sessie verlopen") {
+  clearAuth();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(ADMIN_SESSION_EXPIRED_EVENT, { detail: message }));
+  }
+}
+
+export function isAdminSessionValid() {
+  const session = parseToken(getToken());
+  return !!session && session.exp > Date.now();
+}
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -7,10 +45,16 @@ export function getToken() {
 
 export function getAdminUser() {
   const u = localStorage.getItem(USER_KEY);
-  return u ? JSON.parse(u) : null;
+  if (!u) return null;
+  try {
+    return JSON.parse(u) as AdminUser;
+  } catch {
+    clearAuth();
+    return null;
+  }
 }
 
-export function setAuth(token: string, user: { id: string; username: string; role: string; permissions?: Record<string, boolean> }) {
+export function setAuth(token: string, user: AdminUser) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
@@ -22,6 +66,11 @@ export function clearAuth() {
 
 export async function adminFetch(action: string, body?: unknown) {
   const token = getToken();
+  if (action !== "login" && token && !isAdminSessionValid()) {
+    notifySessionExpired();
+    throw new Error("Sessie verlopen");
+  }
+
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const url = `${supabaseUrl}/functions/v1/admin?action=${action}`;
@@ -38,7 +87,10 @@ export async function adminFetch(action: string, body?: unknown) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && action !== "login") {
+    notifySessionExpired(typeof data?.error === "string" ? data.error : "Sessie verlopen");
+  }
   if (!res.ok) throw new Error(data.error || "Er ging iets mis");
   return data;
 }

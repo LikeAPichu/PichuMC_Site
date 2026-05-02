@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getToken, getAdminUser, clearAuth } from "@/lib/api";
+import { getToken, getAdminUser, clearAuth, isAdminSessionValid, ADMIN_SESSION_EXPIRED_EVENT } from "@/lib/api";
+import { toast } from "sonner";
 import {
   LayoutDashboard, ListTodo, CalendarOff, Users2, Settings, Zap, FileText,
   MessageCircle, Crown, Clock, ChevronLeft, ChevronRight, LogOut, Shield, Megaphone, Palette, Server,
@@ -53,10 +54,25 @@ const AdminPanel = () => {
   const hasPerm = (perm: string) => isOwner || user?.permissions?.[perm] === true;
 
   useEffect(() => {
-    if (!getToken()) navigate("/admin/login");
+    if (!getToken() || !isAdminSessionValid()) {
+      clearAuth();
+      navigate("/admin/login");
+      return;
+    }
+
     const onNav = (e: any) => setActivePage(e.detail);
+    const onSessionExpired = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      toast.error(detail || "Je sessie is verlopen");
+      navigate("/admin/login");
+    };
+
     window.addEventListener("admin:navigate", onNav);
-    return () => window.removeEventListener("admin:navigate", onNav);
+    window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, onSessionExpired as EventListener);
+    return () => {
+      window.removeEventListener("admin:navigate", onNav);
+      window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, onSessionExpired as EventListener);
+    };
   }, []);
 
   // Lock body scroll when mobile drawer is open
