@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, ListTodo, CalendarOff, Users2, Settings, Zap, FileText,
   MessageCircle, Crown, Clock, ChevronLeft, ChevronRight, LogOut, Shield, Megaphone, Palette, Server,
-  Menu, X
+  Menu, X, KeyRound
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
@@ -22,6 +22,7 @@ import { ThemeTab } from "@/components/admin/ThemeTab";
 import { ActivityTab } from "@/components/admin/ActivityTab";
 import { OwnerPanel } from "@/components/admin/OwnerPanel";
 import { ServersTab } from "@/components/admin/ServersTab";
+import { AuthTab } from "@/components/admin/AuthTab";
 import pichuLogo from "@/assets/PichuMC_logo.png";
 
 const staffItems = [
@@ -36,6 +37,7 @@ const adminItems = [
   { key: "applications", label: "Sollicitaties", icon: FileText },
   { key: "positions", label: "Posities", icon: Zap },
   { key: "discord", label: "Discord", icon: MessageCircle },
+  { key: "auth", label: "Auth", icon: KeyRound },
   { key: "servers", label: "Servers", icon: Server },
   { key: "roles", label: "Rollen", icon: Crown },
   { key: "activity", label: "Activiteit", icon: Clock },
@@ -88,7 +90,7 @@ const AdminPanel = () => {
 
   const permMap: Record<string, string> = {
     team: "users_view", applications: "applications_view", positions: "positions_view",
-    discord: "discord_view", servers: "owner_panel", roles: "roles_view", activity: "activity_view",
+    discord: "discord_view", auth: "auth_view", servers: "owner_panel", roles: "roles_view", activity: "activity_view",
     "site-settings": "content_view", theme: "content_manage", announcements: "announcements_manage",
     owner: "owner_panel",
   };
@@ -254,6 +256,7 @@ const AdminPanel = () => {
           {activePage === "applications" && <ApplicationsTab />}
           {activePage === "positions" && <PositionsTab onRefresh={() => {}} />}
           {activePage === "discord" && <DiscordTab />}
+          {activePage === "auth" && <AuthTab />}
           {activePage === "servers" && <ServersTab />}
           {activePage === "roles" && <RolesTab />}
           {activePage === "activity" && <ActivityTab />}

@@ -58,7 +58,7 @@ function buildTaskEmbed(title: string, description: string | null, status: strin
   };
 }
 
-// Edge function v6 — force redeploy 2026-05-02 (ptero-servers, dm-ticket-invite, db-info)
+// Edge function v7 — Auth tab + auth-settings actions (2026-05-03)
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
 
       const roleName = user.roles?.name || user.role;
       const isOwner = roleName === "eigenaar";
-      const allPerms = { see_passwords: true, users_manage: true, roles_manage: true, tasks_manage: true, absences_manage: true, announcements_manage: true, positions_manage: true, positions_view: true, applications_manage: true, applications_view: true, discord_manage: true, discord_view: true, content_manage: true, content_view: true, activity_view: true, stats_view: true, users_view: true, roles_view: true, owner_panel: true };
+      const allPerms = { see_passwords: true, users_manage: true, roles_manage: true, tasks_manage: true, absences_manage: true, announcements_manage: true, positions_manage: true, positions_view: true, applications_manage: true, applications_view: true, discord_manage: true, discord_view: true, content_manage: true, content_view: true, activity_view: true, stats_view: true, users_view: true, roles_view: true, owner_panel: true, auth_view: true, auth_manage: true };
       const permissions = isOwner ? allPerms : (user.roles?.permissions || {});
       
       const token = btoa(JSON.stringify({ userId: user.id, username: user.username, role: roleName, roleId: user.role_id, permissions, exp: Date.now() + 24 * 60 * 60 * 1000 }));
@@ -800,6 +800,58 @@ Deno.serve(async (req) => {
     if (action === "site-settings") {
       const { data } = await supabase.from("site_settings").select("*");
       return jsonResponse(data);
+    }
+
+    // === DISCORD AUTH SETTINGS (stored as site_settings key/values with prefix discord_auth_) ===
+    if (action === "auth-settings") {
+      if (!hasPerm("auth_view") && !hasPerm("auth_manage") && !hasPerm("discord_view") && !hasPerm("discord_manage")) {
+        return jsonResponse({ error: "Geen toegang" }, 403);
+      }
+      const { data } = await supabase.from("site_settings").select("key, value").like("key", "discord_auth_%");
+      const settings: Record<string, string> = {};
+      (data || []).forEach((row: any) => { settings[row.key] = row.value; });
+      // Mask secret on read
+      if (settings["discord_auth_client_secret"]) {
+        settings["discord_auth_client_secret_set"] = "1";
+        settings["discord_auth_client_secret"] = "";
+      }
+      return jsonResponse({ settings });
+    }
+
+    if (action === "update-auth-settings" && req.method === "POST") {
+      if (!hasPerm("auth_manage") && !hasPerm("discord_manage")) {
+        return jsonResponse({ error: "Geen toegang" }, 403);
+      }
+      const body = await req.json();
+      const updates: Record<string, string> = body?.settings || {};
+      const allowedKeys = [
+        "discord_auth_client_id",
+        "discord_auth_client_secret",
+        "discord_auth_redirect_url",
+        "discord_auth_button_enabled",
+        "discord_auth_button_label",
+        "discord_auth_application_link_enabled",
+        "discord_auth_application_link_required",
+        "discord_auth_application_link_url",
+        "discord_auth_application_dm_enabled",
+        "discord_auth_role_link_enabled",
+        "discord_auth_role_mappings",
+        "discord_auth_title",
+        "discord_auth_subtitle",
+      ];
+      for (const [key, value] of Object.entries(updates)) {
+        if (!allowedKeys.includes(key)) continue;
+        // Skip empty client_secret to keep existing
+        if (key === "discord_auth_client_secret" && (value === "" || value == null)) continue;
+        const { data: existing } = await supabase.from("site_settings").select("id").eq("key", key).maybeSingle();
+        if (existing) {
+          await supabase.from("site_settings").update({ value: String(value ?? "") }).eq("key", key);
+        } else {
+          await supabase.from("site_settings").insert({ key, value: String(value ?? "") });
+        }
+      }
+      await logActivity(session.userId, sessionUsername, "update-auth-settings", "Discord Auth instellingen bijgewerkt");
+      return jsonResponse({ success: true });
     }
 
     if (action === "update-site-setting" && req.method === "POST") {
