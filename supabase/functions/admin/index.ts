@@ -58,7 +58,7 @@ function buildTaskEmbed(title: string, description: string | null, status: strin
   };
 }
 
-// Edge function v6 — force redeploy 2026-05-02 (ptero-servers, dm-ticket-invite, db-info)
+// Edge function v7 — Auth tab + auth-settings actions (2026-05-03)
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
 
       const roleName = user.roles?.name || user.role;
       const isOwner = roleName === "eigenaar";
-      const allPerms = { see_passwords: true, users_manage: true, roles_manage: true, tasks_manage: true, absences_manage: true, announcements_manage: true, positions_manage: true, positions_view: true, applications_manage: true, applications_view: true, discord_manage: true, discord_view: true, content_manage: true, content_view: true, activity_view: true, stats_view: true, users_view: true, roles_view: true, owner_panel: true };
+      const allPerms = { see_passwords: true, users_manage: true, roles_manage: true, tasks_manage: true, absences_manage: true, announcements_manage: true, positions_manage: true, positions_view: true, applications_manage: true, applications_view: true, discord_manage: true, discord_view: true, content_manage: true, content_view: true, activity_view: true, stats_view: true, users_view: true, roles_view: true, owner_panel: true, auth_view: true, auth_manage: true };
       const permissions = isOwner ? allPerms : (user.roles?.permissions || {});
       
       const token = btoa(JSON.stringify({ userId: user.id, username: user.username, role: roleName, roleId: user.role_id, permissions, exp: Date.now() + 24 * 60 * 60 * 1000 }));
